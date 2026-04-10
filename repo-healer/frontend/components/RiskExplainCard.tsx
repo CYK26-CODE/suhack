@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import Editor from "@monaco-editor/react";
 import { api } from "@/lib/api";
 
 interface FeatureContribution {
@@ -45,10 +46,30 @@ const LEVEL_BADGE: Record<string, string> = {
   LOW: "bg-emerald-900/50 text-emerald-400 border-emerald-500/40",
 };
 
-function FileExplanation({ explanation }: { explanation: RiskExplanation }) {
+function FileExplanation({ explanation, runId }: { explanation: RiskExplanation, runId: string }) {
   const [expanded, setExpanded] = useState(
     explanation.risk_level === "HIGH"
   );
+
+  const { data: fileData, isLoading: fileLoading } = useQuery({
+    queryKey: ["fileContent", runId, explanation.file],
+    queryFn: () => api.getFileContent(runId, explanation.file),
+    enabled: expanded,
+  });
+
+  const handleEditorDidMount = (editor: any, monaco: any) => {
+    const lineCount = editor.getModel()?.getLineCount() || 1;
+    editor.createDecorationsCollection([
+      {
+        range: new monaco.Range(1, 1, lineCount, 1),
+        options: {
+          isWholeLine: true,
+          className: "monaco-buggy-line",
+          marginClassName: "monaco-buggy-line",
+        },
+      },
+    ]);
+  };
 
   return (
     <div className="rounded-lg border border-gray-700/50 bg-gray-800/30 overflow-hidden transition-all">
@@ -130,6 +151,38 @@ function FileExplanation({ explanation }: { explanation: RiskExplanation }) {
               </div>
             </div>
           )}
+
+          {/* Monaco Editor Code Viewer */}
+          <div className="mt-4 pt-4 border-t border-gray-700/30">
+            <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+              Source Code (Risk Highlighted)
+            </h4>
+            <div className="rounded-lg overflow-hidden border border-gray-700/50 bg-[#1e1e1e] h-80 relative">
+              {fileLoading ? (
+                <div className="absolute inset-0 flex items-center justify-center text-sm text-gray-500">
+                  Loading file content...
+                </div>
+              ) : fileData?.content ? (
+                <Editor
+                  height="100%"
+                  language={explanation.file.endsWith(".py") ? "python" : explanation.file.endsWith(".tsx") || explanation.file.endsWith(".ts") ? "typescript" : explanation.file.endsWith(".js") ? "javascript" : "plaintext"}
+                  theme="vs-dark"
+                  value={fileData.content}
+                  options={{
+                    readOnly: true,
+                    minimap: { enabled: false },
+                    scrollBeyondLastLine: false,
+                    fontSize: 12,
+                  }}
+                  onMount={handleEditorDidMount}
+                />
+              ) : (
+                <div className="absolute inset-0 flex items-center justify-center text-sm text-red-400">
+                  Could not load file content
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -237,7 +290,7 @@ export function RiskExplainPanel({ runId }: { runId: string }) {
           Per-File Analysis ({data.explanations.length} files)
         </h3>
         {data.explanations.map((exp) => (
-          <FileExplanation key={exp.file} explanation={exp} />
+          <FileExplanation key={exp.file} explanation={exp} runId={runId} />
         ))}
       </div>
     </div>

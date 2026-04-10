@@ -43,3 +43,44 @@ async def analyze_repo(
     ctx.local_repo_path = repo_url  # For local paths; PyDriller handles clone for remote
     result = await run_analysis(ctx, store)
     return result
+
+
+@router.get("/file/{run_id}")
+async def get_file_content(
+    run_id: str,
+    file_path: str = Query(..., description="Path to the file relative to repo root"),
+    store: ContextStore = Depends(get_store),
+):
+    """Retrieve raw file content from the cloned repository."""
+    from fastapi import HTTPException
+    import pathlib
+    
+    # Needs to hit the pipeline store where runs are actually saved
+    ctx = await store.get(run_id)
+    if not ctx:
+        raise HTTPException(status_code=404, detail="Run not found")
+        
+    local_repo_path = ctx.local_repo_path
+    if not local_repo_path:
+        raise HTTPException(status_code=400, detail="Repository not cloned locally")
+        
+    full_path = pathlib.Path(local_repo_path) / file_path
+    
+    # Prevent directory traversal
+    try:
+        resolved_full = full_path.resolve(strict=False)
+        resolved_base = pathlib.Path(local_repo_path).resolve(strict=True)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="File or repo not found")
+        
+    if not str(resolved_full).startswith(str(resolved_base)):
+        raise HTTPException(status_code=403, detail="Invalid path")
+        
+    if not resolved_full.exists() or not resolved_full.is_file():
+        raise HTTPException(status_code=404, detail="File not found")
+        
+    try:
+        content = resolved_full.read_text(encoding="utf-8")
+        return {"content": content}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

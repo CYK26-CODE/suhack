@@ -25,3 +25,8 @@ body {
     text-wrap: balance;
   }
 }
+
+/* Monaco Editor specific bug highlight class */
+.monaco-buggy-line {
+  background-color: #5c1b1e !important;
+}

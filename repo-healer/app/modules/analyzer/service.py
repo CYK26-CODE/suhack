@@ -54,11 +54,24 @@ def clone_repo(repo_url: str, branch: str = "main") -> str:
     log.info("cloning_repo", url=repo_url, dest=clone_dir, branch=branch)
     try:
         gitpython.Repo.clone_from(
-            repo_url, clone_dir, branch=branch, depth=100
+            repo_url, clone_dir, branch=branch
         )
     except Exception as exc:
-        log.error("clone_failed", url=repo_url, error=str(exc))
-        raise AnalysisError(f"Failed to clone repo: {exc}") from exc
+        if branch == "main":
+            log.info("clone_fallback_to_default", url=repo_url)
+            try:
+                # Omit branch parameter to clone the default branch
+                gitpython.Repo.clone_from(
+                    repo_url, clone_dir
+                )
+                log.info("clone_complete", path=clone_dir)
+                return clone_dir
+            except Exception as exc2:
+                log.error("clone_failed", url=repo_url, error=str(exc2))
+                raise AnalysisError(f"Failed to clone repo (tried main and default): {exc2}") from exc2
+        else:
+            log.error("clone_failed", url=repo_url, error=str(exc))
+            raise AnalysisError(f"Failed to clone repo: {exc}") from exc
     log.info("clone_complete", path=clone_dir)
     return clone_dir
 

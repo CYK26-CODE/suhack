@@ -14,6 +14,11 @@ export const api = {
   getExplainability: (runId: string) =>
     fetch(`${BASE}/predict/explain/${runId}`).then((r) => r.json()),
 
+  getFileContent: (runId: string, filePath: string) =>
+    fetch(`${BASE}/analyze/file/${runId}?file_path=${encodeURIComponent(filePath)}`).then((r) =>
+      r.json()
+    ),
+
   triggerPipeline: (repoUrl: string, branch: string) =>
     fetch(`${BASE}/pipeline/run`, {
       method: "POST",
